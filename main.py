@@ -1,47 +1,19 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
+from convertor import Convertor
 import os
 import subprocess
-import fitz
 
-file_path = ""
-output_folder = ""
-config = ""
-size_multiplier = 1
-rotation = 0
-
-
-def pdfToImg(pdf_path, img_path):
-	array = decode_config(config, getPageCount(pdf_path))
-	pdfDoc = fitz.open(pdf_path)
-	count = 1
-	zoom_x = size_multiplier
-	zoom_y = size_multiplier
-	mat = fitz.Matrix(zoom_x, zoom_y)
-	mat = mat.prerotate(rotation)
-	for page in pdfDoc.pages():
-		if (array[count] == 1):
-			pix = page.get_pixmap(matrix=mat, dpi=None, colorspace='rgb', alpha=False)
-			target_img_name = img_path + '/' + str(count) + '.png'
-			pix.save(target_img_name)
-		count += 1
-
-
-def getPageCount(pdf_path):
-	count = 0
-	pdfDoc = fitz.open(pdf_path)
-	for page in pdfDoc.pages():
-		count += 1
-	return count
+convertor = Convertor()
 
 
 def update_status():
-	if file_path:
+	if convertor.file_path:
 		status_file_label.config(text="✔", fg="green")
 	else:
 		status_file_label.config(text="✖", fg="red")
 
-	if output_folder:
+	if convertor.output_folder:
 		status_folder_label.config(text="✔", fg="green")
 	else:
 		status_folder_label.config(text="✖", fg="red")
@@ -53,33 +25,31 @@ def update_status():
 
 
 def select_file():
-	global file_path
-	file_path = filedialog.askopenfilename()
-	if file_path:
-		file_label.config(text=f"file: {os.path.basename(file_path)}")
-	pageCount = getPageCount(file_path)
+	convertor.file_path = filedialog.askopenfilename(filetypes=[("PDF Files", "*.pdf")])
+	if convertor.file_path:
+		file_label.config(text=f"file: {os.path.basename(convertor.file_path)}")
+	pageCount = convertor.getPageCount()
 	entry.delete(0, tk.END)
 	entry.insert(0, "1-" + str(pageCount))
 	pages_label.config(text=f"this file has " + str(pageCount) + " pages.")
-	update_config()
+	entry_onChange()
 	update_status()
 
 
 def select_output_folder():
-	global output_folder
-	output_folder = filedialog.askdirectory()
-	if output_folder:
-		output_label.config(text=f"output folder: {output_folder}")
+	convertor.output_folder = filedialog.askdirectory()
+	if convertor.output_folder:
+		output_label.config(text=f"output folder: {convertor.output_folder}")
 	update_status()
 
 
 def open_file():
-	if file_path:
+	if convertor.file_path:
 		try:
 			if os.name == "nt":
-				os.startfile(file_path)
+				os.startfile(convertor.file_path)
 			else:
-				subprocess.run(["open", file_path])
+				subprocess.run(["open", convertor.file_path])
 		except Exception as e:
 			messagebox.showerror("error", f"can not open file: {e}")
 	else:
@@ -87,9 +57,9 @@ def open_file():
 
 
 def open_output_folder():
-	if output_folder:
+	if convertor.output_folder:
 		try:
-			subprocess.run(["open", output_folder])
+			subprocess.run(["open", convertor.output_folder])
 		except Exception as e:
 			messagebox.showerror("error", f"can not open output folder: {e}")
 	else:
@@ -97,7 +67,6 @@ def open_output_folder():
 
 
 def create_output_folder():
-	global output_folder
 	current_directory = os.path.dirname(os.path.abspath(__file__))
 	temp_folder_path = os.path.join(current_directory, "temp")
 	if os.path.exists(temp_folder_path):
@@ -109,51 +78,29 @@ def create_output_folder():
 				os.remove(temp_file_path)
 		os.rmdir(temp_folder_path)
 	os.makedirs(temp_folder_path)
-	output_folder = os.path.abspath(temp_folder_path)
-	output_label.config(text=f"output folder: {output_folder}")
+	convertor.output_folder = os.path.abspath(temp_folder_path)
+	output_label.config(text=f"output folder: {convertor.output_folder}")
 	update_status()
 
 
 def confirm_action():
-	user_input = entry.get()
-	print(f"confirmed : {user_input}")
 	process_label.config(text=f"processing...")
-	pdfToImg(file_path, output_folder)
-	process_label.config(text=f"done")
-	update_status()
+	convertor.pdfToImg()
 	open_output_folder()
+	update_status()
+	process_label.config(text=f"done")
 
 
 def size_slider_onChange(value):
-	global size_multiplier
-	size_multiplier = value
+	convertor.size_multiplier = value
 
 
 def rotate_slider_onChange(value):
-	global rotation
-	rotation = value
+	convertor.rotation = value
 
 
-def decode_config(string, n):
-	result = [0] * (n + 1)
-	blocks = string.split(',')
-	print(string)
-	print(blocks)
-	for block in blocks:
-		print(string)
-		if '-' in block:
-			a, b = map(int, block.split('-'))
-			for i in range(a, b + 1):
-				result[i] = 1
-		else:
-			c = int(block)
-			result[c] = 1
-	return result
-
-
-def update_config():
-	global config
-	config = entry.get()
+def entry_onChange():
+	convertor.config = entry.get()
 	update_status()
 
 
@@ -167,15 +114,15 @@ frame_top.pack(fill="x", padx=10, pady=5)
 step1 = tk.Label(frame_top, text="STEP1: SELECT A PDF FILE", font=("Arial", 12))
 step2 = tk.Label(frame_top, text="STEP2: SELECT ONE BETWEEN", font=("Arial", 12))
 
-file_label = tk.Label(frame_top, text="select a PDF file first", font=("Arial", 12), anchor="w")
+file_label = tk.Label(frame_top, text="select a PDF file", font=("Arial", 12), anchor="w")
 status_file_label = tk.Label(frame_top, text="✖", font=("Arial", 12), fg="red")
-output_label = tk.Label(frame_top, text="select a output folder first", font=("Arial", 12), anchor="w")
+output_label = tk.Label(frame_top, text="select a output folder", font=("Arial", 12), anchor="w")
 status_folder_label = tk.Label(frame_top, text="✖", font=("Arial", 12), fg="red")
 btn_select_file = tk.Button(frame_top, text="select PDF file", command=select_file)
 btn_select_folder = tk.Button(frame_top, text="select output folder", command=select_output_folder)
 or_label = tk.Label(frame_top, text="OR", font=("Arial", 12), anchor="w")
-btn_create_folder = tk.Button(frame_top, text="create a temporary output folder(recommended)",
-							  command=create_output_folder)
+btn_create_folder = tk.Button(frame_top, text="create a temporary output folder(recommended)"
+							  , command=create_output_folder)
 btn_open_file = tk.Button(frame_top, text="open selected file", command=open_file)
 btn_open_folder = tk.Button(frame_top, text="open output folder", command=open_output_folder)
 
@@ -199,7 +146,7 @@ frame_middle.pack(fill="x", padx=10, pady=5)
 step3 = tk.Label(frame_middle, text="STEP3: EDIT SETTINGS", font=("Arial", 12))
 input_label = tk.Label(frame_middle, text="enter pages you want to convert e.g.1-4,6,9-11 will save 8 pages in total :",
 					   font=("Arial", 12), anchor="w")
-pages_label = tk.Label(frame_middle, text="select a PDF file first", font=("Arial", 12), anchor="w")
+pages_label = tk.Label(frame_middle, text="select a PDF file", font=("Arial", 12), anchor="w")
 status_input_label = tk.Label(frame_middle, text="✖", font=("Arial", 12), fg="red")
 step3.grid(row=0, column=0, sticky="w")
 input_label.grid(row=1, column=0, sticky="w")
@@ -207,7 +154,7 @@ pages_label.grid(row=2, column=0, sticky="w")
 status_input_label.grid(row=0, column=1, sticky="e")
 entry = tk.Entry(frame_middle, font=("Arial", 12))
 entry.grid(row=3, column=0, columnspan=2, sticky="we", pady=5)
-entry.bind("<KeyRelease>", lambda event: update_config())
+entry.bind("<KeyRelease>", lambda event: entry_onChange())
 
 ttk.Separator(root, orient="horizontal").pack(fill="x", padx=10, pady=5)
 
